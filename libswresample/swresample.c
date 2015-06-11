@@ -28,6 +28,9 @@
 
 #define ALIGN 32
 
+#include "libavutil/ffversion.h"
+const char swr_ffversion[] = "FFmpeg version " FFMPEG_VERSION;
+
 unsigned swresample_version(void)
 {
     av_assert0(LIBSWRESAMPLE_VERSION_MICRO >= 100);
@@ -663,6 +666,8 @@ int swr_convert(struct SwrContext *s, uint8_t *out_arg[SWR_CH_MAX], int out_coun
         in_count = 0;
         if(ret>0) {
             s->drop_output -= ret;
+            if (!s->drop_output && !out_arg)
+                return 0;
             continue;
         }
 

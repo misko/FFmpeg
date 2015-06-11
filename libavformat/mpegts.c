@@ -504,6 +504,7 @@ static void mpegts_close_filter(MpegTSContext *ts, MpegTSFilter *filter)
 static int analyze(const uint8_t *buf, int size, int packet_size, int *index)
 {
     int stat[TS_MAX_PACKET_SIZE];
+    int stat_all = 0;
     int i;
     int best_score = 0;
     int best_score2 = 0;
@@ -514,6 +515,7 @@ static int analyze(const uint8_t *buf, int size, int packet_size, int *index)
         if (buf[i] == 0x47 && !(buf[i + 1] & 0x80) && buf[i + 3] != 0x47) {
             int x = i % packet_size;
             stat[x]++;
+            stat_all++;
             if (stat[x] > best_score) {
                 best_score = stat[x];
                 if (index)
@@ -524,7 +526,7 @@ static int analyze(const uint8_t *buf, int size, int packet_size, int *index)
         }
     }
 
-    return best_score - best_score2;
+    return best_score - FFMAX(stat_all - 10*best_score, 0)/10;
 }
 
 /* autodetect fec presence. Must have at least 1024 bytes  */
@@ -852,8 +854,12 @@ static int read_sl_header(PESContext *pes, SLConfigDescr *sl,
     int padding_flag = 0, padding_bits = 0, inst_bitrate_flag = 0;
     int dts_flag = -1, cts_flag = -1;
     int64_t dts = AV_NOPTS_VALUE, cts = AV_NOPTS_VALUE;
+    uint8_t buf_padded[128 + FF_INPUT_BUFFER_PADDING_SIZE];
+    int buf_padded_size = FFMIN(buf_size, sizeof(buf_padded) - FF_INPUT_BUFFER_PADDING_SIZE);
 
-    init_get_bits(&gb, buf, buf_size * 8);
+    memcpy(buf_padded, buf, buf_padded_size);
+
+    init_get_bits(&gb, buf_padded, buf_padded_size * 8);
 
     if (sl->use_au_start)
         au_start_flag = get_bits1(&gb);
@@ -1988,7 +1994,7 @@ static void sdt_cb(MpegTSFilter *filter, const uint8_t *section, int section_len
                 break;
             desc_len = get8(&p, desc_list_end);
             desc_end = p + desc_len;
-            if (desc_end > desc_list_end)
+            if (desc_len < 0 || desc_end > desc_list_end)
                 break;
 
             av_dlog(ts->stream, "tag: 0x%02x len=%d\n",

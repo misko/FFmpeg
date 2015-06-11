@@ -566,14 +566,15 @@ static int encode_slice(AVCodecContext *avctx, const AVFrame *pic,
             get_alpha_data(ctx, src, linesize, xp, yp,
                            pwidth, avctx->height / ctx->pictures_per_frame,
                            ctx->blocks[0], mbs_per_slice, ctx->alpha_bits);
-            sizes[i] = encode_alpha_plane(ctx, pb, mbs_per_slice,
-                                          ctx->blocks[0], quant);
+            sizes[i] = encode_alpha_plane(ctx, pb,
+                                          mbs_per_slice, ctx->blocks[0],
+                                          quant);
         }
         total_size += sizes[i];
         if (put_bits_left(pb) < 0) {
-            av_log(avctx, AV_LOG_ERROR,
-                   "Underestimated required buffer size.\n");
-            return AVERROR_BUG;
+            av_log(avctx, AV_LOG_ERROR, "Serious underevaluation of"
+                   "required buffer size");
+            return AVERROR_BUFFER_TOO_SMALL;
         }
     }
     return total_size;
@@ -1058,8 +1059,7 @@ static int encode_frame(AVCodecContext *avctx, AVPacket *pkt,
                     tmp              = pkt->data + (tmp              - start);
                 }
                 init_put_bits(&pb, buf, (pkt_size - (buf - orig_buf)) * 8);
-                ret = encode_slice(avctx, pic, &pb, sizes, x, y, q,
-                                   mbs_per_slice);
+                ret = encode_slice(avctx, pic, &pb, sizes, x, y, q, mbs_per_slice);
                 if (ret < 0)
                     return ret;
 
@@ -1254,9 +1254,9 @@ static av_cold int encode_init(AVCodecContext *avctx)
                                   + 200;
 
     if (ctx->alpha_bits) {
-         // The alpha plane is run-coded and might exceed the bit budget.
-         ctx->frame_size_upper_bound += (ctx->pictures_per_frame *
-                                         ctx->slices_per_picture + 1) *
+         // alpha plane is run-coded and might run over bit budget
+         ctx->frame_size_upper_bound += ctx->pictures_per_frame *
+                                        ctx->slices_per_picture *
          /* num pixels per slice */     (ctx->mbs_per_slice * 256 *
          /* bits per pixel */            (1 + ctx->alpha_bits + 1) + 7 >> 3);
     }

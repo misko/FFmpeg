@@ -590,6 +590,14 @@ static void write_frame(AVFormatContext *s, AVPacket *pkt, OutputStream *ost)
     AVCodecContext          *avctx = ost->st->codec;
     int ret;
 
+    if (!ost->st->codec->extradata_size && ost->enc_ctx->extradata_size) {
+        ost->st->codec->extradata = av_mallocz(ost->enc_ctx->extradata_size + FF_INPUT_BUFFER_PADDING_SIZE);
+        if (ost->st->codec->extradata) {
+            memcpy(ost->st->codec->extradata, ost->enc_ctx->extradata, ost->enc_ctx->extradata_size);
+            ost->st->codec->extradata_size = ost->enc_ctx->extradata_size;
+        }
+    }
+
     if ((avctx->codec_type == AVMEDIA_TYPE_VIDEO && video_sync_method == VSYNC_DROP) ||
         (avctx->codec_type == AVMEDIA_TYPE_AUDIO && audio_sync_method < 0))
         pkt->pts = pkt->dts = AV_NOPTS_VALUE;
@@ -1813,17 +1821,9 @@ static int decode_audio(InputStream *ist, AVPacket *pkt, int *got_output)
         for (i = 0; i < nb_filtergraphs; i++)
             if (ist_in_filtergraph(filtergraphs[i], ist)) {
                 FilterGraph *fg = filtergraphs[i];
-                int j;
                 if (configure_filtergraph(fg) < 0) {
                     av_log(NULL, AV_LOG_FATAL, "Error reinitializing filters!\n");
                     exit_program(1);
-                }
-                for (j = 0; j < fg->nb_outputs; j++) {
-                    OutputStream *ost = fg->outputs[j]->ost;
-                    if (ost->enc->type == AVMEDIA_TYPE_AUDIO &&
-                        !(ost->enc->capabilities & CODEC_CAP_VARIABLE_FRAME_SIZE))
-                        av_buffersink_set_frame_size(ost->filter->filter,
-                                                     ost->enc_ctx->frame_size);
                 }
             }
     }
@@ -3433,7 +3433,7 @@ static int process_input(int file_index)
     }
 
     /* add the stream-global side data to the first packet */
-    if (ist->nb_packets == 1)
+    if (ist->nb_packets == 1) {
         if (ist->st->nb_side_data)
             av_packet_split_side_data(&pkt);
         for (i = 0; i < ist->st->nb_side_data; i++) {
@@ -3449,6 +3449,7 @@ static int process_input(int file_index)
 
             memcpy(dst_data, src_sd->data, src_sd->size);
         }
+    }
 
     if (pkt.dts != AV_NOPTS_VALUE)
         pkt.dts += av_rescale_q(ifile->ts_offset, AV_TIME_BASE_Q, ist->st->time_base);

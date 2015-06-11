@@ -488,8 +488,7 @@ ffplay -f lavfi "movie=test.avi[out0];amovie=test.wav[out1]"
 Audio-CD input device based on cdio.
 
 To enable this input device during configuration you need libcdio
-installed on your system. Requires the configure option
-@code{--enable-libcdio}.
+installed on your system.
 
 This device allows playing and grabbing from an Audio-CD.
 

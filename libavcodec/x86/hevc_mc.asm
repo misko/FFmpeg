@@ -378,9 +378,9 @@ QPEL_TABLE 12, 4, w, sse4
     movdqa          [%1], %2
 %endmacro
 
-%macro LOOP_END 3
-    add              %1q, 2*MAX_PB_SIZE          ; dst += dststride
-    add              %2q, %3q                    ; src += srcstride
+%macro LOOP_END 4
+    lea              %1q, [%1q+2*%2q]            ; dst += dststride
+    add              %3q, %4q                    ; src += srcstride
     dec          heightd                         ; cmp height
     jnz               .loop                      ; height loop
 %endmacro
